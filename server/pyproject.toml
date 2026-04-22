@@ -1,0 +1,20 @@
+[project]
+name = "bqcheck"
+version = "0.1.0"
+description = "Estimate BigQuery cost of a SQL query via dry run"
+requires-python = ">=3.11"
+dependencies = [
+    "google-cloud-bigquery>=3.41",
+    "rich>=15.0",
+]
+
+[tool.uv]
+package = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project.scripts]
+bqcheck = "bqcheck:main"
+bqcheck-server = "server:main"
