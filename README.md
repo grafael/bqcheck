@@ -1,3 +1,8 @@
+<p align="center">
+<img width="233" height="340" alt="logo (1)" src="https://github.com/user-attachments/assets/cda07dc0-c736-4bc2-b466-ef59fff65c9a" />
+</p>
+
+
 # bqcheck
 
 Know what a BigQuery query costs before you run it. Highlight SQL anywhere in Chrome, click the extension, see the bill.
@@ -47,9 +52,9 @@ Server flags: `--port 7899` (also update `manifest.json` and the `SERVER` consta
 
 ## When things break
 
-- **`ERR` on the badge** — server isn't running.
-- **Empty project dropdown** — `gcloud auth login` then hit ↻.
-- **403 from BigQuery** — your ADC user needs `BigQuery Job User` on that project.
+- **`ERR` on the badge** : server isn't running.
+- **Empty project dropdown** : `gcloud auth login` then hit ↻.
+- **403 from BigQuery** : your ADC user needs `BigQuery Job User` on that project.
 
 ## License
 
