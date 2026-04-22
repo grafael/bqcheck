@@ -15,6 +15,9 @@ chrome.contextMenus.onClicked.addListener(async (info) => {
 
   setBadge("...", "#888888");
 
+  // Stash the selection so the popup can prefill from it if opened next.
+  chrome.storage.session.set({ pendingSql: info.selectionText });
+
   const { selectedProject, costPerTib } = await chrome.storage.local.get([
     "selectedProject",
     "costPerTib",

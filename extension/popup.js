@@ -68,37 +68,78 @@ function readPrice() {
 }
 
 async function prefillFromSelection() {
-  // Strategy: trigger document.execCommand('copy') in the page. That fires
-  // the native `copy` event, which editors like Monaco / CodeMirror hook —
-  // so the clipboard ends up with the real (non-virtualized, non-truncated)
-  // text even when window.getSelection() wouldn't return it. We then read
-  // the clipboard from the popup and restore whatever was there before.
-  let previousClipboard = null;
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id) return;
 
+    if (tab?.id) {
+      const text = await readPageSelection(tab.id);
+      if (text && text.trim()) {
+        setEditorText(text);
+        chrome.storage.session.remove("pendingSql");
+        return;
+      }
+
+      // Fallback for virtualized editors (Monaco / CodeMirror) where
+      // window.getSelection() returns nothing: dispatch a copy event, which
+      // the editor will hook to put the real selected text on the clipboard.
+      if (await tryCopyTrickPrefill(tab.id)) {
+        chrome.storage.session.remove("pendingSql");
+        return;
+      }
+    }
+
+    // Last resort: consume anything the context menu stashed on a prior right-click.
+    const { pendingSql } = await chrome.storage.session.get("pendingSql");
+    if (pendingSql) {
+      setEditorText(pendingSql);
+      chrome.storage.session.remove("pendingSql");
+    }
+  } catch {
+    // Restricted pages (chrome://, Web Store, etc.) — silently skip.
+  }
+}
+
+function setEditorText(text) {
+  editor.setValue(text);
+  editor.setCursor(0, 0);
+}
+
+async function readPageSelection(tabId) {
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId, allFrames: true },
+      func: () => window.getSelection()?.toString() ?? "",
+    });
+    for (const r of results || []) {
+      if (r?.result && r.result.trim()) return r.result;
+    }
+  } catch {}
+  return "";
+}
+
+async function tryCopyTrickPrefill(tabId) {
+  let previousClipboard = null;
+  try {
     try { previousClipboard = await navigator.clipboard.readText(); } catch {}
 
     const results = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
+      target: { tabId },
       world: "MAIN",
       func: () => {
         try { return document.execCommand("copy"); } catch { return false; }
       },
     });
     const copied = results?.[0]?.result === true;
-    if (!copied) return;
+    if (!copied) return false;
 
     let text = "";
-    try { text = await navigator.clipboard.readText(); } catch { return; }
+    try { text = await navigator.clipboard.readText(); } catch { return false; }
 
     if (text && text.trim() && text !== previousClipboard) {
-      editor.setValue(text);
-      editor.setCursor(0, 0);
+      setEditorText(text);
+      return true;
     }
-  } catch {
-    // Restricted pages (chrome://, Web Store, etc.) — silently skip.
+    return false;
   } finally {
     if (previousClipboard !== null) {
       try { await navigator.clipboard.writeText(previousClipboard); } catch {}
