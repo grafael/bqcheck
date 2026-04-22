@@ -34,9 +34,11 @@ Load the extension:
 
 ## Using it
 
-Highlight SQL on any page, click the icon. The selection drops into the editor. Pick a project, hit **Calculate Cost**.
+Three ways to check a query:
 
-You can also paste SQL directly, or right-click a selection → **Check BQ cost** to show the result on the badge.
+- **Popup** : highlight SQL, click the icon. The selection drops into the editor — pick a project, hit **Calculate Cost**. You can also paste SQL directly.
+- **Right-click** : select SQL → **Check BQ cost**. Result shows on the toolbar badge; the popup never opens.
+- **Keyboard** : `Cmd+Shift+,` (mac) / `Ctrl+Shift+,` (Win/Linux) with SQL selected. Same badge-only flow as the right-click menu. Rebind at `chrome://extensions/shortcuts`.
 
 Click the ⚙ to set your org's price per TiB (defaults to `$6.25`).
 
@@ -48,7 +50,7 @@ There's a CLI if you want a one-off estimate from the terminal:
 uv run bqcheck query.sql --project my-proj
 ```
 
-Server flags: `--port 7899` (also update `manifest.json` and the `SERVER` constant in `popup.js` / `background.js`), `--project my-proj` for a default fallback.
+Server flags: `--port 7899` (also update `manifest.json`'s `host_permissions` and the `SERVER` constant in `extension/shared.js`), `--project my-proj` for a default fallback.
 
 ## When things break
 

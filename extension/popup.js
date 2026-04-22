@@ -1,6 +1,10 @@
-const SERVER = "http://127.0.0.1:7891";
-const BYTES_PER_TIB = 1024 ** 4;
-const DEFAULT_COST_PER_TIB = 6.25;
+import {
+  SERVER,
+  BYTES_PER_TIB,
+  DEFAULT_COST_PER_TIB,
+  formatCost,
+  readSelection,
+} from "./shared.js";
 
 const btn = document.getElementById("calculate");
 const cardEl = document.getElementById("result-card");
@@ -70,25 +74,16 @@ function readPrice() {
 async function prefillFromSelection() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-
     if (tab?.id) {
-      const text = await readPageSelection(tab.id);
+      const text = await readSelection(tab.id);
       if (text && text.trim()) {
         setEditorText(text);
         chrome.storage.session.remove("pendingSql");
         return;
       }
-
-      // Fallback for virtualized editors (Monaco / CodeMirror) where
-      // window.getSelection() returns nothing: dispatch a copy event, which
-      // the editor will hook to put the real selected text on the clipboard.
-      if (await tryCopyTrickPrefill(tab.id)) {
-        chrome.storage.session.remove("pendingSql");
-        return;
-      }
     }
 
-    // Last resort: consume anything the context menu stashed on a prior right-click.
+    // Last resort: consume anything the context menu or shortcut stashed.
     const { pendingSql } = await chrome.storage.session.get("pendingSql");
     if (pendingSql) {
       setEditorText(pendingSql);
@@ -102,49 +97,6 @@ async function prefillFromSelection() {
 function setEditorText(text) {
   editor.setValue(text);
   editor.setCursor(0, 0);
-}
-
-async function readPageSelection(tabId) {
-  try {
-    const results = await chrome.scripting.executeScript({
-      target: { tabId, allFrames: true },
-      func: () => window.getSelection()?.toString() ?? "",
-    });
-    for (const r of results || []) {
-      if (r?.result && r.result.trim()) return r.result;
-    }
-  } catch {}
-  return "";
-}
-
-async function tryCopyTrickPrefill(tabId) {
-  let previousClipboard = null;
-  try {
-    try { previousClipboard = await navigator.clipboard.readText(); } catch {}
-
-    const results = await chrome.scripting.executeScript({
-      target: { tabId },
-      world: "MAIN",
-      func: () => {
-        try { return document.execCommand("copy"); } catch { return false; }
-      },
-    });
-    const copied = results?.[0]?.result === true;
-    if (!copied) return false;
-
-    let text = "";
-    try { text = await navigator.clipboard.readText(); } catch { return false; }
-
-    if (text && text.trim() && text !== previousClipboard) {
-      setEditorText(text);
-      return true;
-    }
-    return false;
-  } finally {
-    if (previousClipboard !== null) {
-      try { await navigator.clipboard.writeText(previousClipboard); } catch {}
-    }
-  }
 }
 
 async function refreshProjects() {
@@ -262,10 +214,4 @@ async function calculate() {
 function showError(msg) {
   errorEl.textContent = msg;
   errorEl.style.display = "block";
-}
-
-function formatCost(cost) {
-  if (cost < 0.01) return "<1c";
-  if (cost < 1) return `${Math.ceil(cost * 100)}c`;
-  return `$${cost.toFixed(0)}`;
 }

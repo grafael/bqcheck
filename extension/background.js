@@ -1,6 +1,10 @@
-const SERVER = "http://127.0.0.1:7891";
-const BYTES_PER_TIB = 1024 ** 4;
-const DEFAULT_COST_PER_TIB = 6.25;
+import {
+  SERVER,
+  BYTES_PER_TIB,
+  DEFAULT_COST_PER_TIB,
+  formatCost,
+  readSelection,
+} from "./shared.js";
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
@@ -10,13 +14,29 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
-chrome.contextMenus.onClicked.addListener(async (info) => {
+chrome.contextMenus.onClicked.addListener((info) => {
   if (info.menuItemId !== "bqcheck-estimate" || !info.selectionText) return;
-
-  setBadge("...", "#888888");
-
-  // Stash the selection so the popup can prefill from it if opened next.
   chrome.storage.session.set({ pendingSql: info.selectionText });
+  estimateAndBadge(info.selectionText);
+});
+
+chrome.commands.onCommand.addListener(async (command) => {
+  if (command !== "bqcheck-estimate-selection") return;
+
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) return;
+
+  const sql = await readSelection(tab.id);
+  if (!sql || !sql.trim()) {
+    setBadge("?", "#888888");
+    return;
+  }
+  chrome.storage.session.set({ pendingSql: sql });
+  estimateAndBadge(sql);
+});
+
+async function estimateAndBadge(sql) {
+  setBadge("...", "#888888");
 
   const { selectedProject, costPerTib } = await chrome.storage.local.get([
     "selectedProject",
@@ -28,7 +48,7 @@ chrome.contextMenus.onClicked.addListener(async (info) => {
     const resp = await fetch(`${SERVER}/estimate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sql: info.selectionText, project: selectedProject || undefined }),
+      body: JSON.stringify({ sql, project: selectedProject || undefined }),
     });
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || "Server error");
@@ -38,12 +58,6 @@ chrome.contextMenus.onClicked.addListener(async (info) => {
   } catch {
     setBadge("ERR", "#CC0000");
   }
-});
-
-function formatCost(cost) {
-  if (cost < 0.01) return "<1c";
-  if (cost < 1) return `${Math.ceil(cost * 100)}c`;
-  return `$${cost.toFixed(0)}`;
 }
 
 function setBadge(text, color) {
